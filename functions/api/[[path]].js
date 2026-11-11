@@ -58,7 +58,7 @@ export async function onRequest(context) {
     console.error('Voz refund proxy failure', {
       name: error?.name || 'UnknownError',
       message: String(error?.message || 'Unknown failure').slice(0, 200)
-     });
+    });
 
-      return respond({ error: 'Refund service unavailable' }, 502);
-    }
+    return respond({ error: 'Refund service unavailable' }, 502);
+  }
