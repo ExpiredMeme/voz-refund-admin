@@ -54,7 +54,11 @@ export async function onRequest(context) {
     if (text.length > 500000) return respond({ error: 'Unexpected upstream response size' }, 502);
     const data = JSON.parse(text);
     return respond(data, result.status);
-  } catch {
-    return respond({ error: 'Refund service unavailable' }, 502);
-  }
-}
+  } catch (error) {
+    console.error('Voz refund proxy failure', {
+      name: error?.name || 'UnknownError',
+      message: String(error?.message || 'Unknown failure').slice(0, 200)
+     });
+
+      return respond({ error: 'Refund service unavailable' }, 502);
+    }
