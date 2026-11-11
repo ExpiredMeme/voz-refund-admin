@@ -50,6 +50,9 @@ export async function onRequest(context) {
   }
   try {
     const result = await fetch(upstream, { headers: { Authorization: `Bearer ${env.ADMIN_TOKEN}`, Accept: 'application/json' }, redirect: 'error' });
+    console.log('Voz refund upstream status:', result.status);
+    console.log('Voz refund upstream content type:',
+      result.headers.get('content-type') || 'missing');
     const text = await result.text();
     if (text.length > 500000) return respond({ error: 'Unexpected upstream response size' }, 502);
     const data = JSON.parse(text);
