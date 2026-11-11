@@ -1,0 +1,31 @@
+VOZ REFUND MANAGER — PRIVATE CLOUDFLARE PAGES
+================================================
+
+This is a separate Cloudflare Pages project with a server-side proxy to the existing Voz refund API.
+Do not upload it to the public Voz website.
+
+1. Create a NEW Cloudflare Pages project (e.g. voz-refund-admin), connected to a PRIVATE GitHub repository containing this folder's contents. Use a Pages project that supports Pages Functions. Framework: None. Build command: leave blank. Build output directory: / (repository root). The functions/ directory must be at the project root.
+
+2. Set these Pages environment variables under Settings > Variables and Secrets:
+   - ADMIN_TOKEN (SECRET): the same value as the existing voz-license-api Worker ADMIN_TOKEN. Do not put it in any source file.
+   - VOZ_API_BASE (plain variable): https://voz-license-api.voztts.workers.dev
+   - ACCESS_TEAM_DOMAIN (plain variable): https://YOUR-TEAM.cloudflareaccess.com
+   - ACCESS_AUD (plain variable): the Application Audience (AUD) tag from the Cloudflare Access application protecting the admin site.
+   Add all four to the Production environment. Do not enable public Preview deployments with these secrets.
+
+3. In Cloudflare Zero Trust > Access > Applications, add a SELF-HOSTED application covering the EXACT Pages production hostname (e.g. voz-refund-admin.pages.dev), with a policy allowing only your administrator identity/email. Ensure the policy covers the whole hostname and all paths, including /api/*, and deny everyone else. Configure your identity provider / one-time PIN. Use the AUD tag of THIS application for ACCESS_AUD.
+
+4. IMPORTANT: Cloudflare Pages and Access support/hostname coverage can vary by deployment method and account. Verify Access protects the exact production hostname and Pages Functions. If the Pages-provided hostname cannot be protected as intended, attach a custom admin subdomain and configure Access on that hostname BEFORE using the dashboard. Do not assume an Access policy on a custom domain also protects the pages.dev alias or Preview URLs. Disable/secure alternate reachable hostnames and preview deployments.
+
+5. Deploy only after Access is configured. Test in a private/incognito browser: unauthenticated access to / and /api/refunds must be blocked, and an allowed administrator should be prompted to sign in. The Pages Function ALSO validates the Cloudflare Access JWT signature, issuer, audience, and expiration before using ADMIN_TOKEN.
+
+6. After sign-in, /api/refunds should show JSON containing your test refund request. The dashboard at / should display that request and its detail.
+
+SECURITY NOTES
+- The frontend contains no ADMIN_TOKEN, PayPal credentials, licence keys, or direct API calls to the Worker.
+- API proxy is GET-only and restricted to /api/refunds and /api/refunds/<UUID>.
+- All user-supplied text is rendered with textContent (not innerHTML).
+- The list counters represent ONLY the currently loaded page, not database-wide totals.
+- Possible purchase matches are NOT verified ownership.
+- No refund approval, rejection, PayPal refund, or licence revocation controls exist in this version.
+- Never place the ADMIN_TOKEN in browser JS or public repo. Rotate the token if exposed.
