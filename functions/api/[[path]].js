@@ -58,10 +58,18 @@ export async function onRequest(context) {
     const data = JSON.parse(text);
     return respond(data, result.status);
   } catch (error) {
-    console.error('Voz refund proxy failure', {
-      name: error?.name || 'UnknownError',
-      message: String(error?.message || 'Unknown failure').slice(0, 200)
-    });
+    const message = String(error?.message || '');
 
-    return respond({ error: 'Refund service unavailable' }, 502);
+    let failureType = 'unknown';
+
+    if (error instanceof SyntaxError) {
+      failureType = 'invalid_upstream_json';
+    } else if (error instanceof TypeError) {
+      failureType = 'upstream_fetch_or_response_error';
+    }
+
+    return respond({
+      error: 'Refund service unavailable',
+      diagnostic: failureType
+    }, 502);
   }
