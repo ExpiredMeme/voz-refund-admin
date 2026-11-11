@@ -130,6 +130,9 @@ export async function onRequest(context) {
     }
 
     console.error('Voz refund proxy failure type:', failureType);
+    console.error('Voz refund exception name:', error?.name || 'unknown');
+    console.error('Voz refund exception message:',
+      String(error?.message || 'unknown').slice(0, 200));
     // Temporary, non-sensitive diagnostic. Remove after the 502 issue is resolved.
     return respond({ error: 'Refund service unavailable', diagnostic: failureType }, 502);
   }
