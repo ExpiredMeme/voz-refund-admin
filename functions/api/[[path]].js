@@ -73,3 +73,4 @@ export async function onRequest(context) {
       diagnostic: failureType
     }, 502);
   }
+}
