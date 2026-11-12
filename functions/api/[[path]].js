@@ -71,7 +71,7 @@ async function verifyAccess(request, env) {
 export async function onRequest(context) {
   const { request, env, params } = context;
 
-  if (request.method !== 'GET') return respond({ error: 'Method not allowed' }, 405);
+  if (request.method !== 'GET' && request.method !== 'POST') return respond({ error: 'Method not allowed' }, 405);
   if (!(await verifyAccess(request, env))) {
     return respond({ error: 'Access authentication required' }, 401);
   }
@@ -80,19 +80,26 @@ export async function onRequest(context) {
   }
 
   const segments = Array.isArray(params.path) ? params.path : [params.path];
+  const validId = (value) => /^[a-f0-9-]{36}$/i.test(value || '');
+  const actions = ['review', 'notes', 'approve', 'reject'];
   let upstreamPath;
-  if (segments.length === 1 && segments[0] === 'refunds') {
+  if (segments.length === 1 && segments[0] === 'refunds' && request.method === 'GET') {
     upstreamPath = '/api/admin/refunds';
-  } else if (
-    segments.length === 2 &&
-    segments[0] === 'refunds' &&
-    /^[a-f0-9-]{36}$/i.test(segments[1])
-  ) {
+  } else if (segments.length === 2 && segments[0] === 'refunds' && validId(segments[1]) && request.method === 'GET') {
     upstreamPath = `/api/admin/refunds/${segments[1]}`;
+  } else if (segments.length === 3 && segments[0] === 'refunds' && validId(segments[1]) && actions.includes(segments[2]) && request.method === 'POST') {
+    upstreamPath = `/api/admin/refunds/${segments[1]}/${segments[2]}`;
   } else {
     return respond({ error: 'Not found' }, 404);
   }
-
+  // Require same-origin requests for state-changing actions in addition to Access JWT verification.
+  if (request.method === 'POST') {
+    const origin = request.headers.get('Origin');
+    if (origin !== new URL(request.url).origin) return respond({ error: 'Origin not allowed' }, 403);
+    if (!(request.headers.get('Content-Type') || '').toLowerCase().startsWith('application/json')) {
+      return respond({ error: 'Expected JSON' }, 415);
+    }
+  }
   const input = new URL(request.url);
   const upstream = new URL(upstreamPath, env.VOZ_API_BASE);
   if (segments.length === 1) {
@@ -103,11 +110,25 @@ export async function onRequest(context) {
   }
 
   try {
+    let body;
+    if (request.method === 'POST') {
+      const declaredLength = Number(request.headers.get('Content-Length') || 0);
+      if (declaredLength > 8192) return respond({ error: 'Request too large' }, 413);
+      body = await request.text();
+      if (body.length > 8192) return respond({ error: 'Request too large' }, 413);
+      try {
+        const parsed = JSON.parse(body);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid object');
+      } catch { return respond({ error: 'Invalid JSON body' }, 400); }
+    }
     const result = await fetch(upstream, {
+      method: request.method,
       headers: {
         Authorization: `Bearer ${env.ADMIN_TOKEN}`,
-        Accept: 'application/json'
+        Accept: 'application/json',
+        ...(request.method === 'POST' ? { 'Content-Type': 'application/json' } : {})
       },
+      ...(request.method === 'POST' ? { body } : {}),
       redirect: 'manual'
     });
 

@@ -7,6 +7,87 @@ const line = (parent, label, value) => { parent.append(el('dt', label), el('dd',
 function section(parent, title) { parent.append(el('h3', title)); }
 function info(parent, fields) { const dl = el('dl', null, 'kv'); for (const [k,v] of fields) line(dl,k,v); parent.append(dl); }
 async function api(path) { const r = await fetch('/api/' + path, { credentials:'same-origin', headers: { Accept:'application/json' }, cache:'no-store' }); let data; try { data = await r.json(); } catch { throw new Error('Invalid response from server'); } if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`); return data; }
+async function apiPost(path, payload) {
+  const r = await fetch('/api/' + path, {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  let data;
+  try { data = await r.json(); } catch { throw new Error('Invalid response from server'); }
+  if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+  return data;
+}
+function actionButton(label, action, payloadBuilder, className = 'outline') {
+  const button = el('button', label, className); button.type = 'button';
+  button.addEventListener('click', async () => {
+    const id = state.selected;
+    if (!id || button.disabled) return;
+    const payload = payloadBuilder();
+    if (payload === null) return;
+    const controls = $('admin-actions');
+    const buttons = controls.querySelectorAll('button');
+    buttons.forEach(b => b.disabled = true);
+    setError('detail-error', '');
+    try {
+      await apiPost('refunds/' + encodeURIComponent(id) + '/' + action, payload);
+      await loadList();
+      await selectRefund(id);
+    } catch (e) {
+      setError('detail-error', e.message);
+      buttons.forEach(b => b.disabled = false);
+    }
+  });
+  return button;
+}
+function addAdminActions(root, refund) {
+  section(root, 'Administrator actions');
+  const panel = el('div', null, 'admin-actions'); panel.id = 'admin-actions';
+  const help = el('p', 'Actions are recorded in the audit history. Approval does not issue a PayPal refund or revoke a licence.', 'muted');
+  panel.append(help);
+  if (refund.status === 'pending') {
+    panel.append(actionButton('Start review', 'review', () => ({})));
+  }
+  if (['pending', 'under_review', 'approved', 'rejected'].includes(refund.status)) {
+    const noteLabel = el('label', 'Internal administrator note'); noteLabel.htmlFor = 'admin-note';
+    const note = el('textarea'); note.id = 'admin-note'; note.maxLength = 2000;
+    note.placeholder = 'Enter investigation notes (up to 2,000 characters)'; note.rows = 3;
+    panel.append(noteLabel, note);
+    panel.append(actionButton('Save note', 'notes', () => {
+      const value = note.value.trim();
+      if (!value) { setError('detail-error', 'Enter a note first.'); return null; }
+      return { note: value };
+    }));
+  }
+  if (['pending', 'under_review'].includes(refund.status)) {
+    const reject = actionButton('Reject request', 'reject', () => {
+      const reason = window.prompt('Enter a rejection reason (required):');
+      if (reason === null) return null;
+      if (!reason.trim() || reason.trim().length > 2000) { setError('detail-error', 'Enter a rejection reason of 1–2,000 characters.'); return null; }
+      if (!window.confirm('Reject this refund request? This records a decision but does not move money.')) return null;
+      return { reason: reason.trim() };
+    }, 'outline danger');
+    panel.append(reject);
+    const approve = actionButton('Approve (no payment)', 'approve', () => {
+      if (!refund.order_id || !refund.license_id || !refund.paypal_transaction_id) {
+        setError('detail-error', 'Approval requires a verified linked order, licence and PayPal transaction.');
+        return null;
+      }
+      const verification_note = window.prompt('Describe how you independently verified ownership (at least 20 characters):');
+      if (verification_note === null) return null;
+      if (verification_note.trim().length < 20 || verification_note.trim().length > 2000) {
+        setError('detail-error', 'Verification note must contain 20–2,000 characters.'); return null;
+      }
+      if (!window.confirm('Record administrative approval only? No PayPal refund will be sent and no licence will be revoked.')) return null;
+      return { verification_note: verification_note.trim() };
+    }, 'outline');
+    panel.append(approve);
+  }
+  if (['refund_processing', 'refunded', 'failed'].includes(refund.status)) {
+    panel.append(el('p', 'This request is locked for payment reconciliation.', 'muted'));
+  }
+  root.append(panel);
+}
 function setError(id, message) { const e = $(id); e.hidden = !message; e.textContent = message || ''; }
 async function loadList() {
   setError('list-error',''); $('requests').replaceChildren(el('p','Loading requests…','muted'));
@@ -42,6 +123,7 @@ async function selectRefund(id) {
     const r=data.refund; const root=el('div',null,'detail-content');
     section(root,'Request');
     info(root,[['Reference',r.id],['Customer email',r.customer_email],['PayPal transaction',r.paypal_transaction_id],['Status',r.status],['Created',r.created_at],['Updated',r.updated_at],['Linked order ID',r.order_id],['Linked licence ID',r.license_id],['PayPal refund ID',r.paypal_refund_id],['Admin notes',r.admin_notes]]);
+    addAdminActions(root, r);
     section(root,'Customer reason'); root.append(el('div',r.reason,'reason-box'));
     section(root,`Possible purchase matches (${(data.possible_matches||[]).length})`);
     if (!data.possible_matches?.length) root.append(el('p','No matching completed purchases found.','muted'));
