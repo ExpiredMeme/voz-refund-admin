@@ -105,28 +105,26 @@ export async function onRequest(context) {
   try {
     const result = await fetch(upstream, {
       headers: {
-      Authorization: `Bearer ${env.ADMIN_TOKEN}`,
-      Accept: 'application/json'
-    },
-    redirect: 'manual'
-  });
+        Authorization: `Bearer ${env.ADMIN_TOKEN}`,
+        Accept: 'application/json'
+      },
+      redirect: 'manual'
+    });
 
-  if (result.status >= 300 && result.status < 400) {
-    return respond({ error: 'Unexpected upstream redirect' }, 502);
-  }
+    if (result.status >= 300 && result.status < 400) {
+      return respond({ error: 'Unexpected upstream redirect' }, 502);
+    }
 
-  console.log('Voz refund upstream status:', result.status);
-  console.log(
-    'Voz refund upstream content type:',
-    result.headers.get('content-type') || 'missing'
-  );
+    // Only metadata is logged; never log tokens or refund records.
+    console.log('Voz refund upstream status:', result.status);
+    console.log('Voz refund upstream content type:', result.headers.get('content-type') || 'missing');
 
-  const text = await result.text();
-    if (body.length > 500000) {
+    const text = await result.text();
+    if (text.length > 500000) {
       return respond({ error: 'Unexpected upstream response size' }, 502);
     }
 
-    const data = JSON.parse(body);
+    const data = JSON.parse(text);
     return respond(data, result.status);
   } catch (error) {
     let failureType = 'unknown';
@@ -138,9 +136,7 @@ export async function onRequest(context) {
 
     console.error('Voz refund proxy failure type:', failureType);
     console.error('Voz refund exception name:', error?.name || 'unknown');
-    console.error('Voz refund exception message:',
-      String(error?.message || 'unknown').slice(0, 200));
-    // Temporary, non-sensitive diagnostic. Remove after the 502 issue is resolved.
+    // Temporary diagnostics: avoid logging raw exception messages or response bodies.
     return respond({ error: 'Refund service unavailable', diagnostic: failureType }, 502);
   }
 }
