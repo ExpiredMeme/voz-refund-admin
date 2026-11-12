@@ -115,10 +115,6 @@ export async function onRequest(context) {
       return respond({ error: 'Unexpected upstream redirect' }, 502);
     }
 
-    // Only metadata is logged; never log tokens or refund records.
-    console.log('Voz refund upstream status:', result.status);
-    console.log('Voz refund upstream content type:', result.headers.get('content-type') || 'missing');
-
     const text = await result.text();
     if (text.length > 500000) {
       return respond({ error: 'Unexpected upstream response size' }, 502);
@@ -126,17 +122,7 @@ export async function onRequest(context) {
 
     const data = JSON.parse(text);
     return respond(data, result.status);
-  } catch (error) {
-    let failureType = 'unknown';
-    if (error instanceof SyntaxError) {
-      failureType = 'invalid_upstream_json';
-    } else if (error instanceof TypeError) {
-      failureType = 'upstream_fetch_or_response_error';
-    }
-
-    console.error('Voz refund proxy failure type:', failureType);
-    console.error('Voz refund exception name:', error?.name || 'unknown');
-    // Temporary diagnostics: avoid logging raw exception messages or response bodies.
-    return respond({ error: 'Refund service unavailable', diagnostic: failureType }, 502);
+  } catch {
+    return respond({ error: 'Refund service unavailable' }, 502);
   }
 }
