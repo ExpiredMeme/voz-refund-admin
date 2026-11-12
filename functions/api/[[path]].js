@@ -104,11 +104,14 @@ export async function onRequest(context) {
 
   try {
     const result = await fetch(upstream, {
+      if (result.status >= 300 && result.status < 400) {
+        return respond({ error: 'Unexpected upstream redirect' }, 502);
+      }
       headers: {
         Authorization: `Bearer ${env.ADMIN_TOKEN}`,
         Accept: 'application/json'
       },
-      redirect: 'error'
+      redirect: 'manual'
     });
 
     console.log('Voz refund upstream status:', result.status);
