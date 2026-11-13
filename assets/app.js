@@ -83,6 +83,22 @@ function addAdminActions(root, refund) {
     }, 'outline');
     panel.append(approve);
   }
+  if (refund.status === 'approved') {
+    panel.append(el('p','Sandbox only. Prepare once, then execute once. An uncertain result requires reconciliation, never another payment attempt.','muted'));
+    panel.append(actionButton('Prepare Sandbox refund', 'sandbox-refund-prepare', () => {
+      if (!window.confirm('Prepare one persistent Sandbox refund attempt? No payment is sent.')) return null;
+      return {refund_id:refund.id,confirm:'PREPARE_SANDBOX_REFUND_NO_PAYMENT'};
+    }));
+    panel.append(actionButton('Execute £6.99 Sandbox refund', 'sandbox-refund-execute', () => {
+      const entered=window.prompt('To submit a PayPal SANDBOX refund, type EXECUTE_SANDBOX_REFUND');
+      if (entered!=='EXECUTE_SANDBOX_REFUND') return null;
+      if (!window.confirm('Submit the prepared refund to PayPal Sandbox? This cannot be automatically retried.')) return null;
+      return {refund_id:refund.id,confirm:'EXECUTE_SANDBOX_REFUND'};
+    }, 'outline danger'));
+  }
+  if (refund.status === 'refund_processing') {
+    panel.append(actionButton('Reconcile PayPal refund (GET only)', 'sandbox-refund-confirm', () => ({})));
+  }
   if (['refund_processing', 'refunded', 'failed'].includes(refund.status)) {
     panel.append(el('p', 'This request is locked for payment reconciliation.', 'muted'));
   }
