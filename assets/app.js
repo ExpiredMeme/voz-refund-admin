@@ -145,6 +145,19 @@ async function selectRefund(id) {
     if (!data.possible_matches?.length) root.append(el('p','No matching completed purchases found.','muted'));
     for (const m of data.possible_matches||[]) {
       const card=el('div',null,'match'); card.append(el('div',m.ownership_verified?'Ownership verified':'UNVERIFIED CANDIDATE — investigate before linking','flag'));
+      if (!r.order_id && ['pending','under_review'].includes(r.status) && m.environment==='sandbox' && m.order_status==='completed' && m.licence_status==='active' && m.email_matches && (!r.paypal_transaction_id || m.transaction_matches)) {
+        const link=el('button','Link this purchase (manual review)','outline'); link.type='button';
+        link.addEventListener('click',async()=>{
+          const note=window.prompt('Describe how you INDEPENDENTLY verified the requester owns this purchase. Matching an email address alone is not proof. (30+ characters)');
+          if(note===null)return;
+          if(note.trim().length<30 || note.length>2000){setError('detail-error','Enter 30–2000 characters documenting independent ownership verification.');return;}
+          if(!window.confirm('Link order '+m.paypal_order_id+' to this refund? This does not approve or issue a payment.'))return;
+          link.disabled=true;setError('detail-error','');
+          try{await apiPost('refunds/'+encodeURIComponent(r.id)+'/link-purchase',{order_id:m.order_id,verification_note:note.trim()});await loadList();await selectRefund(r.id);}
+          catch(e){setError('detail-error',e.message);link.disabled=false;}
+        });
+        card.append(link);
+      }
       info(card,[['Environment',m.environment],['PayPal order',m.paypal_order_id],['Capture ID',m.paypal_capture_id],['Order status',m.order_status],['Purchase email',m.fulfilment_email],['Licence email',m.licence_email],['Licence ID',m.license_id],['Licence status',m.licence_status],['Activations',m.activation_count],['Amount',m.amount+' '+m.currency],['Email matches',m.email_matches?'Yes':'No'],['Transaction matches',m.transaction_matches?'Yes':'No']]); root.append(card);
     }
     section(root,`Audit history (${(data.events||[]).length})`);

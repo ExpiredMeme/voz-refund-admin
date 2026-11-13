@@ -81,7 +81,7 @@ export async function onRequest(context) {
 
   const segments = Array.isArray(params.path) ? params.path : [params.path];
   const validId = (value) => /^[a-f0-9-]{36}$/i.test(value || '');
-  const actions = ['review', 'notes', 'approve', 'reject', 'sandbox-refund-prepare', 'sandbox-refund-execute', 'sandbox-refund-confirm'];
+  const actions = ['review', 'notes', 'approve', 'reject', 'sandbox-refund-prepare', 'sandbox-refund-execute', 'sandbox-refund-confirm', 'link-purchase'];
   let upstreamPath;
   if (segments.length === 1 && segments[0] === 'refunds' && request.method === 'GET') {
     upstreamPath = '/api/admin/refunds';
